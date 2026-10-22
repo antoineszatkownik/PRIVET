@@ -70,7 +70,7 @@ class PRIVET:
         return self
 
     # ------------------------------------------------------------------
-    def compute_scores(self, synthetic, test=None, score_fraction=0.5, threshold=-1.0,
+    def compute_scores(self, synthetic, test=None, score_fraction=0.5, threshold=None,
                        upper_tail="extrapolate", test_reference="train_law"):
         """
         Stage 2. One row per synthetic sample, sorted by rank r of its 1-NN
