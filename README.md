@@ -79,6 +79,29 @@ For a reference set (```train``` or ```test```) of size $`N`$, $`u_1 \leq \cdots
 | `n_pleaks` | $`r[u_r^{test}] - r[u_r^{train}]`$; number of leaked samples up to that rank |
 | `log10_p_train`, `log10_p_test`, `delta_p` | cf. eq (7)
 
+## Toy example
+
+Gaussian data, with 20 synthetic samples replaced by near-copies of training samples:
+
+```python
+import numpy as np
+from privet import PRIVET, plot_cdfs, plot_score_distributions
+
+rng = np.random.default_rng(0)
+train, test, synthetic = (rng.normal(size=(500, 5)) for _ in range(3))
+synthetic[:20] = train[:20] + 0.01 * rng.normal(size=(20, 5))    # the leaks
+
+privet = PRIVET(train, "cpu")                 # stage 1: fit
+plot_cdfs(privet)
+
+scores = privet.compute_scores(synthetic, test, score_fraction=0.5, threshold=-1)   # stage 2
+plot_cdfs(privet, scores)
+print(privet.summary(scores))
+print(scores.loc[scores["flagged"], "syn_idx"].sort_values().tolist())
+```
+
+The 20 copies have the 20 smallest distances to train and come first in `scores`, with $`\Delta p_r`$ between −13 and −9. The threshold −1 flags exactly samples 0–19. $`N_{pleaks}`$ fluctuates around the groundtruth.
+
 
 ## Threshold
 
