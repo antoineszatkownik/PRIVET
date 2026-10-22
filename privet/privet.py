@@ -141,7 +141,7 @@ class PRIVET:
             scores["G_test"] = at_train_rank(te["G"])
             scores["log10_p_test"] = at_train_rank(te["log10_p"])
             scores["delta_p"] = scores["log10_p_train"] - scores["log10_p_test"]
-            scores["n_pleaks"] = max(0,te["r_hat"] - tr["r_hat"])   # both read at the same rank r
+            scores["n_pleaks"] = np.maximum(0,te["r_hat"] - tr["r_hat"])   # both read at the same rank r
             scores.attrs["test_law"], scores.attrs["N_test"] = law_test, N_test   # for plot_cdfs
 
         # no score beyond the tail fraction

@@ -14,10 +14,10 @@ pip install git+https://github.com/antoineszatkownik/PRIVET.git
 
 PRIVET has two stages:
 
-1. **Fit.** 1-NN distances train→train ($d^*_{TrTr}$), EVD fit (Weibull or Gumbel) on a window of their lower tail. \
+1. **Fit.** 1-NN distances train→train ($`d^*_{TrTr}`$), EVD fit (Weibull or Gumbel) on a window of their lower tail. \
 Plot the CDF and the fit to check the window.
-2. **Score.** 1-NN distances synthetic→train ($d^*_{STr}$) and synthetic→test ($d^*_{STe}$), and scores for each synthetic sample. \
-The CDF plot can now show $d^*_{STr}$ and $d^*_{STe}$.
+2. **Score.** 1-NN distances synthetic→train ($`d^*_{STr}`$) and synthetic→test ($`d^*_{STe}`$), and scores for each synthetic sample. \
+The CDF plot can now show $`d^*_{STr}`$ and $`d^*_{STe}`$.
 
 **Remark:** Having a ```test``` set is not mandatory!
 
@@ -48,7 +48,7 @@ privet.summary(scores)                       # N_overfit, N_pleaks, Δ score qua
 plot_score_distributions(scores)
 ```
 
-`train`, `test` and `synthetic` are numpy arrays or torch tensors with shape $(N,d)$ where $N$ is dataset size and $d$ is the number of features. Their sizes can differ! The test set is optional (no $\Delta$ scores and no $N_{pleaks}$ without it).
+`train`, `test` and `synthetic` are numpy arrays or torch tensors with shape $`(N,d)`$ where $`N`$ is dataset size and $`d`$ is the number of features. Their sizes can differ! The test set is optional (no $`\Delta`$ scores and no $`N_{pleaks}`$ without it).
 
 **Remark:** PRIVET is a statement about the tail. Depending on the data, the closer to the bulk the sample is, the less PRIVET becomes reliable as it involves extrapolating the extreme value law outside of the lower tail. At `score_fraction=0.5`, we assign a data leakage risk score for the first half of the data.
 
@@ -64,25 +64,25 @@ privet run --train train.npy --test test.npy --synthetic synth.npy --distance ha
 ## Outputs
 
 **TL;DR:** \
-The quantities to rely on are $N_{overfit}$ and $N_{pleaks}$ (available in the output summary), and the per-sample $p_r^{train}$ and $\Delta p_r$ (available in the output table).
+The quantities to rely on are $`N_{overfit}`$ and $`N_{pleaks}`$ (available in the output summary), and the per-sample $`p_r^{train}`$ and $`\Delta p_r`$ (available in the output table).
 
-For a reference set (```train``` or ```test```) of size $N$, $u_1 \leq \cdots \leq u_M$ are the sorted 1-NN distances of the $M$ synthetic samples to it, $\hat G(u) = 1 − \exp(−N A u^α)$ (Weibull) or $1 − \exp(−N A e^{Bu})$ (Gumbel) the fitted law at size $N$, and $r[u] = \lfloor M Ĝ(u)\rfloor$ the rank expected for distance $u$ (paper, Sec. 2.3 and Appendix B).
+For a reference set (```train``` or ```test```) of size $`N`$, $`u_1 \leq \cdots \leq u_M`$ are the sorted 1-NN distances of the $`M`$ synthetic samples to it, $`\hat G(u) = 1 − \exp(−N A u^\alpha)`$ (Weibull) or $`1 − \exp(−N A e^{Bu})`$ (Gumbel) the fitted law at size $`N`$, and $`r[u] = \lfloor M Ĝ(u)\rfloor`$ the rank expected for distance $`u`$ (paper, Sec. 2.3 and Appendix B).
 
 | Column | Definition |
 |---|---|
-| `rank`, `syn_idx` | rank $r$ upon sorting, and the row of the sample in `synthetic` |
-| `d_train`, `nn_train_idx` | $u_r^{train}$ and the row of the nearest training sample |
-| `d_test`, `nn_test_idx`, `rank_test` | the same w.r.t. test; $r'$ |
+| `rank`, `syn_idx` | rank $`r`$ upon sorting, and the row of the sample in `synthetic` |
+| `d_train`, `nn_train_idx` | $`u_r^{train}`$ and the row of the nearest training sample |
+| `d_test`, `nn_test_idx`, `rank_test` | the same w.r.t. test; $`r'`$ |
 | `fit_region` | `d_train` lands below, inside or above the fit window |
-| `G_train`, `G_test` | Ĝ at `d_train` (train size) and at `d_test` (test size) |
-| `n_overfit` | r − r[u_r^train]; number of overfit samples up to that rank |
-| `n_pleaks` | r[u_r^test] − r[u_r^train]; number of leaks samples up to that rank|
+| `G_train`, `G_test` | $`\hat G`$ at `d_train` (train size) and at `d_test` (test size) |
+| `n_overfit` | $`r - r[u_r^{train}]`$; number of overfit samples up to that rank |
+| `n_pleaks` | $`r[u_r^{test}] - r[u_r^{train}]`$; number of leaked samples up to that rank |
 | `log10_p_train`, `log10_p_test`, `delta_p` | cf. eq (7)
 
 
 ## Threshold
 
-`compute_scores(..., threshold=None)` adds a `flagged` column when threshold is not `None`: scored samples with $\Delta p_r \leq$ threshold, or $\log_{10} p_r^{train} \leq$ threshold without a test set.
+`compute_scores(..., threshold=None)` adds a `flagged` column when threshold is not `None`: scored samples with $`\Delta p_r \leq`$ threshold, or $`\log_{10} p_r^{train} \leq`$ threshold without a test set.
 
 Two ways to tune the threshold:
 - Using real data, perform a train, test, pseudo-synthetic split. This allows to create a no-leakage scenario. Calibrate the threshold for the pseudo-synthetic based on a desired false positive rate (e.g. 1% or 5%).
