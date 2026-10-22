@@ -64,7 +64,7 @@ privet run --train train.npy --test test.npy --synthetic synth.npy --distance ha
 ## Outputs
 
 **TL;DR:** \
-The quantities to rely on are $`N_{overfit}`$ and $`N_{pleaks}`$ (available in the output summary), and the per-sample $`p_r^{train}`$ and $`\Delta p_r`$ (available in the output table).
+The quantities to rely on are $`N_{overfit}`$ and $`N_{pleaks}`$ (available in the output summary), and the per-sample $`p_r^{train}`$ and $`\Delta p_r`$ (available in the output table). The lower $`p_r^{train}`$ and $`\Delta p_r`$ are, the higher the risk of leakage.
 
 For a reference set (```train``` or ```test```) of size $`N`$, $`u_1 \leq \cdots \leq u_M`$ are the sorted 1-NN distances of the $`M`$ synthetic samples to it, $`\hat G(u) = 1 − \exp(−N A u^\alpha)`$ (Weibull) or $`1 − \exp(−N A e^{Bu})`$ (Gumbel) the fitted law at size $`N`$, and $`r[u] = \lfloor M Ĝ(u)\rfloor`$ the rank expected for distance $`u`$ (paper, Sec. 2.3 and Appendix B).
 
