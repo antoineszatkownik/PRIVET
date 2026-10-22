@@ -1,138 +1,94 @@
-# PRIVET: PRIVacy metric based on Extreme value Theory
+# PRIVET: PRoximIty leakage detection Via Extreme value Theory
 
-**Abstract:** Deep generative models are often trained on sensitive data, such as genetic sequences, health data, or more broadly, any copyrighted, licensed or protected content. This raises critical concerns around privacy-preserving synthetic data, and more specifically around privacy leakage, an issue closely tied to overfitting. Existing methods almost exclusively rely on global criteria to estimate the risk of privacy failure associated to a model, offering only quantitative non interpretable insights. The absence of rigorous evaluation methods for data privacy at the sample-level may hinder the practical deployment of synthetic data in real-world applications. Using extreme value statistics on nearest-neighbor distances, we propose PRIVET, a generic sample-based, modality-agnostic algorithm that assigns an individual privacy leak score to each synthetic sample. We empirically demonstrate that PRIVET reliably detects instances of memorization and overfitting across diverse data modalities, including settings with very high dimensionality and limited sample sizes such as genetic data. We compare our method to existing approaches under controlled settings and show its advantage in providing both dataset level and sample level assessments through qualitative and quantitative outputs. Additionally, our analysis reveals limitations in existing computer vision embeddings to yield perceptually meaningful distances when identifying near-duplicate samples.
+PRIVET detects proximity-based data leakage (memorization, overfitting or data leakage occuring in underfitting regime) by auditing synthetic data sample by sample. It fits an extreme value law to the nearest-neighbour (1-NN) distances within the training set, then asks, for each synthetic sample, whether a generated sample is too close from a train sample.
 
-## Quick start
+## Install
 
-### Hyperparameters
+For GPU nearest-neighbour search, first install the PyTorch build matching your CUDA version. Then:
 
-- Partition of the Train-Train 1-NN distances on which the EVT fit is applied 
-- Threshold for binarizing scores into "privacy leak or not" tag
-
-### Example
-
-Assuming `Train` and `Synthetic` are loaded as torch tensors of shape `(N, D)` where N is sample size and D is the number of features (ie. flattened vectors)   
-Having a `Test` set is not mandatory (`Test` is either `None` or loaded too)   
-`Train`, `Test` and `Synthetic` can have different sample sizes.   
-
-The partition of the data (**a hyperparameter of the method**) on which the EVT fit is applied should be decided upon examination of the cumulative of 1-NN distances between pairs of train samples. Yet, default (= 20\%) might still be a good choice (otherwise ranging from 1\% to 20\% at most).
-
-```python
-import sys
-PATH = "/your/path/to"
-sys.path.append(f"{PATH}/PRIVET")
-from src.privet import *
-
-distance = "hamming" # else: "standard_euclidean"
-
-# this computes 1-NN distances within Training set & EVT fit the resulting distribution of 1-NN distances
-privet = PRIVET(train, \
-    device, \
-    partition_fit_start=0.01, \
-    partition_fit_end=0.2, \
-    distance=distance)
-
-# if Train and Test have equal sample size or Test is None, then renormalization is None
-# test can be set to None here
-# This computes the 1-NN from synthetic to train & synthetic to test 1-NN distances if test is given, then derives privacy scores
-out = privet.compute_scores_syn_to_ref(synth, test, renormalization = None)
-
-delta_pi = out[:,privet.COL_DELTA_PI] #(out_score cf paper Main.2.3 $\Delta \pi_r$)
-
-threshold = -3
-
-NPL = delta_pi <= threshold #boolean for each synthetic samples: privacy leak or not 
+```bash
+pip install git+https://github.com/antoineszatkownik/PRIVET.git
 ```
 
-Here is how to plot $d_{TrTr}^*$ (the distribution of nearest neighbor distances from train to train samples) and its EVD fit.   
+## Usage
+
+PRIVET has two stages:
+
+1. **Fit.** 1-NN distances train→train ($d^*_{TrTr}$), EVD fit (Weibull or Gumbel) on a window of their lower tail. \
+Plot the CDF and the fit to check the window.
+2. **Score.** 1-NN distances synthetic→train ($d^*_{STr}$) and synthetic→test ($d^*_{STe}$), and scores for each synthetic sample. \
+The CDF plot can now show $d^*_{STr}$ and $d^*_{STe}$.
+
+**Remark:** Having a ```test``` set is not mandatory!
+
+### Python
+
+*Hyperparameter*
+- Partition of the Train-Train 1-NN distances on which the EVT fit is applied
 
 ```python
-import sys
-PATH = "/your/path/to"
-sys.path.append(f"{PATH}/PRIVET")
-from src.privet import *
+from privet import PRIVET, plot_cdfs, plot_score_distributions
 
-distance = "hamming" # else: "standard_euclidean"
+device = "cuda" #or "cpu"
 
-privet = PRIVET(train, \
-    device, \
-    partition_fit_start=0.01, \
-    partition_fit_end=0.2, \
-    distance=distance)
+# Stage 1
+privet = PRIVET(train, device, partition_fit_start=0.01,    partition_fit_end=0.2,
+                distance="hamming",          # or "standard_euclidean"
+                fit_method="ols")            # or "mle"
+plot_cdfs(privet)
+#privet.fit(0.02, 0.3)                        # another window, distances not recomputed
 
-styles = [{'color': 'olive', 'label': r'$d^*_{TrTr}$', 'marker': 'x', 's': 1}]
+# Stage 2: one row per synthetic sample, sorted by rank r
+scores = privet.compute_scores(synthetic, test, score_fraction=0.5, threshold=None)
+scores.to_csv("scores.csv", index=False)
+plot_cdfs(privet, scores)
 
-plot_single_CDF_and_EVD(privet.p_tr_tr_NN_dist, privet.label_best_fit, privet.param1, privet.param2, styles, FONTSIZE = 13)
+# Stage 3
+privet.summary(scores)                       # N_overfit, N_pleaks, Δ score quantiles
+plot_score_distributions(scores)
 ```
 
-### Output scores
+`train`, `test` and `synthetic` are numpy arrays or torch tensors with shape $(N,d)$ where $N$ is dataset size and $d$ is the number of features. Their sizes can differ! The test set is optional (no $\Delta$ scores and no $N_{pleaks}$ without it).
 
-Constants for columns in the “score matrix” output (see compute_scores_syn_to_ref)    
+**Remark:** PRIVET is a statement about the tail. Depending on the data, the closer to the bulk the sample is, the less PRIVET becomes reliable as it involves extrapolating the extreme value law outside of the lower tail. At `score_fraction=0.5`, we assign a data leakage risk score for the first half of the data.
 
-```python
-(
-    COL_DELTA_PI,                     #(out_score)
-    COL_DELTA_P,                      #(out_score_implicit_decimation_different_ranks)
-    COL_DELTA_PI_RANK_R,              #(out_score)
-    COL_DELTA_P_RANK_R,               #(out_score)
-    COL_BAR_DELTA_PI_RANK_R,          #(out_score_underfitting)
-    COL_SCORE4,                       #(out_score_alternative)  
-    COL_N_OVERFIT_RANK_R,             #(out_score_aggreg_overfit)
-    COL_N_PRIVACY_LEAKS_RANK_R,       #(out_score_aggreg_underfit)
-    COL_MIN_OVERFIT_LEAKS,            #(out_score_aggreg_??) (??)
-    COL_PX_TRAIN,                     #(stats_utils)
-    COL_P_TRAIN,                      #(out_score_order_stat_implicit_decimation)
-    COL_PI_TRAIN,                     #(out_score)
-    COL_PX_TEST,                      #(stats_utils)
-    COL_PI_TEST,                      #(utils_order_stats)
-    COL_ONE_MINUS_PI_TRAIN,           #(utils_order_stats)
-    COL_ONE_MINUS_PI_TEST,            #(utils_order_stats)
-    COL_P_TEST,                       #(utils_order_stats)
-    COL_PX_TEST_RANK_R,               #(stats_utils)
-    COL_PI_TEST_RANK_R,               #(utils_order_stats)
-    COL_ONE_MINUS_PI_TEST_RANK_R,     #(utils_order_stats)
-    COL_RANK_S_TR,                    #(utils)
-    COL_RANK_S_TE,                    #(utils)
-    COL_N_PRIVACY_LEAKS_RANK_R_BIS,   #(out_score_aggreg_underfit) (??)
-    COL_DIST_TR_RANK_R,               #(utils)
-    COL_DIST_TE_RANK_R_PRIME,         #(utils)
-    COL_IDX_TRAIN,                    #(utils)
-    COL_IDX_TEST,                     #(utils)
-    COL_IDX_SYN,                      #(utils)
-    COL_GT                            #(utils)
-)
+### Command line
+
+```bash
+privet fit --train train.npy --distance hamming --fit-window 0.01 0.2 --device cuda --out runs/fit
+privet run --train train.npy --test test.npy --synthetic synth.npy --distance hamming --fit-window 0.01 0.2 --device cuda --out runs/audit
 ```
 
-Remark: `COL_DELTA_PI` is the score used in the paper  
+`fit` writes `cdfs.png`. `run` writes `scores.csv`, `summary.json`, `cdfs.png`, `score_distributions.png`. Data files: `.npy`, `.csv` or `.pt`.
 
-## Reproducibility
+## Outputs
 
-**!!Works with the following tag ONLY: v1.1-refactor!!**
+**TL;DR:** \
+The quantities to rely on are $N_{overfit}$ and $N_{pleaks}$ (available in the output summary), and the per-sample $p_r^{train}$ and $\Delta p_r$ (available in the output table).
 
-- Main.Fig.2 and Appendix.Fig.7 are reproducible through: compile `PRIVET/experiments/genetic_leakage/65K_SNPs_1668_samples.py` to compute the privacy maps ($\sim 3$ hours on $1 \times$ A100-40GB) then plot them via `PRIVET/experiments/genetic_leakage/PLOT_65K_SNPs_1668_samples.ipynb`. Change the grid from $3 \times 3$ to $31 \times 31$
+For a reference set (```train``` or ```test```) of size $N$, $u_1 \leq \cdots \leq u_M$ are the sorted 1-NN distances of the $M$ synthetic samples to it, $\hat G(u) = 1 − \exp(−N A u^α)$ (Weibull) or $1 − \exp(−N A e^{Bu})$ (Gumbel) the fitted law at size $N$, and $r[u] = \lfloor M Ĝ(u)\rfloor$ the rank expected for distance $u$ (paper, Sec. 2.3 and Appendix B).
 
-- Main.Fig.3 is reproducible through: compile `PRIVET/experiments/copycat_cifar10/comparison_dinov2.py` for long computations (< 3 hours on $1 \times$ A100-40GB) then plot them via `PRIVET/experiments/copycat_cifar10/PLOT_comparison.ipynb`. Change the transformations and the $\beta$ values by un-commenting. Repeat the same for Wavelet embeddings
+| Column | Definition |
+|---|---|
+| `rank`, `syn_idx` | rank $r$ upon sorting, and the row of the sample in `synthetic` |
+| `d_train`, `nn_train_idx` | $u_r^{train}$ and the row of the nearest training sample |
+| `d_test`, `nn_test_idx`, `rank_test` | the same w.r.t. test; $r'$ |
+| `fit_region` | `d_train` lands below, inside or above the fit window |
+| `G_train`, `G_test` | Ĝ at `d_train` (train size) and at `d_test` (test size) |
+| `n_overfit` | r − r[u_r^train]; number of overfit samples up to that rank |
+| `n_pleaks` | r[u_r^test] − r[u_r^train]; number of leaks samples up to that rank|
+| `log10_p_train`, `log10_p_test`, `delta_p` | cf. eq (7)
 
-- Main.Fig.4 is reproducible through `PRIVET/experiments/membership_attack/65K_controlled_leakage.ipynb` and `PRIVET/experiments/membership_attack/RBM_HGD.ipynb`
 
-- Appendix.Fig.5 and Appendix.Fig.6 are reproducible through`PRIVET/experiments/genetic_leakage/low_sample_size.ipynb`
+## Threshold
 
+`compute_scores(..., threshold=None)` adds a `flagged` column when threshold is not `None`: scored samples with $\Delta p_r \leq$ threshold, or $\log_{10} p_r^{train} \leq$ threshold without a test set.
 
-## TODO
+Two ways to tune the threshold:
+- Using real data, perform a train, test, pseudo-synthetic split. This allows to create a no-leakage scenario. Calibrate the threshold for the pseudo-synthetic based on a desired false positive rate (e.g. 1% or 5%).
+- If data is abundant, use an additional independent validation split to find the optimal threshold based on the pareto front of ROC-PR curves.
 
-**Priority 1**
-- [ ] experiment on what should be the renormalization factor in gumbel case
+## Fit window
 
-**Priority 2**
-- [ ] change linear regression to maximum likelihood
-- [ ] update reproducible code with new class
-- [ ] make privet into a package so that you don't have to add path to privet
-- [ ] use FAISS to compute 1-NNs
+The quantile-based window is the fraction of sorted train→train distances used for the fit. Windows used in the paper: haplotypes [1%, 20%]; CIFAR-10  [0.1%, 2%]; ImageNet  [0.1%, 10%]; UCI Adult / Bank [0.1%, 2.8%] / [0.2%, 10%].
 
-**Done**
-- [x] Add Gumbel case (it's still estimated via linear regression though) and choose best fit
-- [x] try using same rank on test for the basic score (cf score4)
-- [x] change binom.sf and binom.cdf to binom.logsf and binom.logcdf when no under/over-flow alarm & implement them manually with numba when alarm case
-- [x] add all the scores for `compute_scores()` function
-- [x] do a class for privet (compute 1-NN, EVT fit, decide renormalization based on user or default, decide partition based on user or default, same for threshold ...)
-- [x] make a quick start example (subsection in the readme) on how to use PRIVET in a minimal setting, and how to parse/read the results
