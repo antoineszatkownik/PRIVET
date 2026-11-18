@@ -1,6 +1,6 @@
 # PRIVET: PRoximIty leakage detection Via Extreme value Theory
 
-PRIVET detects proximity-based data leakage (memorization, overfitting or data leakage occuring in underfitting regime) by auditing synthetic data sample by sample. It fits an extreme value law to the nearest-neighbour (1-NN) distances within the training set, then asks, for each synthetic sample, whether a generated sample is too close from a train sample.
+PRIVET detects proximity-based data leakage (memorization, overfitting or data leakage occurring in underfitting regime) by auditing synthetic data sample by sample. It fits an extreme value law to the nearest-neighbour (1-NN) distances within the training set, then asks, for each synthetic sample, whether a generated sample is too close from a train sample.
 
 ## Install
 
